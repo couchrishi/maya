@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: maya-agent
+Version: 0.1.0
+Summary: A generative AI agent for creating browser-based games.
+Author-email: Maya AI Assistant <assistant@example.com>
+License: Apache License 2.0
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: google-adk
+Requires-Dist: google-generativeai
+Requires-Dist: python-dotenv
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"

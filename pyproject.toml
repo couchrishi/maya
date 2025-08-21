@@ -1,0 +1,36 @@
+[project]
+name = "maya-agent"
+version = "0.1.0"
+description = "A generative AI agent for creating browser-based games."
+authors = [
+    {name = "Maya AI Assistant", email = "assistant@example.com"}
+]
+license = {text = "Apache License 2.0"}
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.116.1",
+    "google-adk",
+    "google-generativeai",
+    "python-dotenv",
+    "python-multipart>=0.0.20",
+    "uvicorn[standard]>=0.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agents*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]
