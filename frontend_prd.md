@@ -1,8 +1,8 @@
-# Product Requirements Document: Maya AI Frontend (V2)
+# Product Requirements Document: Maya AI Frontend (V3 - Comprehensive)
 
 ## 1. Overview
 
-This document outlines the product requirements for the frontend of the Maya AI game creation platform. The frontend is a web-based interface that allows users to interact with the Maya AI to generate, preview, and iterate on browser-based games. The user experience must be highly dynamic and responsive, providing real-time feedback of the AI's thought process and actions, all within a distinct cyberpunk aesthetic.
+This document outlines the comprehensive product requirements for the frontend of the Maya AI game creation platform. The frontend is a web-based interface that allows users to interact with the Maya AI to generate, preview, and iterate on browser-based games. The user experience must be highly dynamic and responsive, providing real-time feedback of the AI's thought process and actions, all within a distinct cyberpunk aesthetic.
 
 ## 2. User Flow
 
@@ -20,56 +20,69 @@ The primary user journey is as follows:
 
 ### 3.1. Home Page (`/`)
 
-The entry point to the application, designed to be immersive and encourage creativity.
-
--   **Immersive Background:** A dynamic, animated 3D background that aligns with the cyberpunk and game-creation theme.
--   **Central Prompt Input:** A large, central text area for the user to enter their game idea.
--   **Submission & Navigation:** On submission (click or Enter), a "Creating project..." modal is displayed briefly, and then the user is navigated to the `/session` route, passing the prompt text.
--   **Game Templates:** The page will display cards for starting from templates.
+-   **Immersive Background:** A dynamic, animated 3D background using `three.js`.
+-   **Central Prompt Input:** A large, central text area for the user's game idea.
+-   **Submission & Navigation:** On submission, a "Creating project..." modal is displayed, and the user is navigated to the `/session` route, passing the prompt text.
+-   **Game Templates:** Clickable cards for starting from pre-defined game templates.
 
 ### 3.2. Session Page (`/session`)
 
-The main workspace for AI interaction and game creation. It features a two-panel layout.
+A two-panel layout for AI interaction and game creation.
 
 #### 3.2.1. Left Panel: Live Chat Interface
 
-This panel displays a real-time, streaming conversation with the Maya AI.
-
 -   **Stateful Conversation:** The chat history is maintained in the application's state.
--   **Initial State:** The user's prompt from the Home Page is the first message. The AI immediately responds with an introductory message (e.g., "Analyzing...").
--   **Live AI Feedback:** The AI's message bubble will have several states:
-    -   **Thinking:** A "Thinking..." message with an animated indicator will be shown while the AI is processing.
-    -   **Streaming Response:** The AI's thoughts, plans, and code generation commands (e.g., `<createFile file="main.js">`) will be streamed into the message bubble token by token, providing a live view of its work.
--   **Suggested Prompts:** After a generation is complete, the AI will suggest the next logical step or enhancement as a clickable prompt.
--   **Iterative Input:** The user can type follow-up prompts to modify the existing game.
+-   **Live AI Feedback:** The AI's message bubble will have multiple, distinct states, updated in real-time.
+-   **Suggested Prompts:** After a generation, the AI will suggest the next logical step as a clickable prompt.
+-   **Iterative Input:** A text input for follow-up prompts.
 
 #### 3.2.2. Right Panel: Game Workspace
 
-This panel is for viewing the output of the AI's generation.
-
--   **Tabbed Interface:** The panel will have three tabs: "Preview," "Assets," and "Code."
--   **Initial State:** On first load, the "Preview" tab is active and displays an empty state.
--   **Live Preview Update:** The game preview in the `iframe` will be updated in real-time as the AI generates and modifies the code.
--   **Assets Tab:** Displays a list of assets used in the game. This will be populated based on the AI's generation output.
+-   **Tabbed Interface:** "Preview," "Assets," and "Code."
+-   **Live Preview Update:** The game preview `iframe` will be updated in real-time as the AI generates and modifies the code.
+-   **Assets Tab:** Displays a list of assets used in the game.
 -   **Code Tab:** Displays the complete, final code for the generated game.
 
-## 4. Technical Requirements
+## 4. Detailed UI States & API Contract
+
+### 4.1. Component States
+
+| Component         | State           | UI Representation                                                                                             |
+| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------------- |
+| **ChatInterface** | `Idle`          | Standard welcome message. Input field is active.                                                              |
+|                   | `Thinking`      | A message bubble with an animated "Thinking..." indicator appears. Input field is disabled.                   |
+|                   | `Streaming`     | The AI's message bubble is populated token-by-token. The text cursor blinks at the end of the stream.         |
+|                   | `Suggestion`    | After a successful generation, clickable "Suggested next step" buttons appear.                               |
+| **GamePanel**     | `Empty`         | "Preview" tab shows a "Ready to Create" message with an icon. "Code" tab shows "No Code Yet".                 |
+|                   | `Generating`    | "Preview" and "Code" tabs show a "Generating..." loading indicator.                                           |
+|                   | `Success`       | "Preview" tab renders the game in an `iframe`. "Code" tab displays the full, formatted code.                  |
+|                   | `Error`         | "Preview" tab shows an error message. A toast notification appears with the error details.                    |
+
+### 4.2. Streaming API Contract
+
+The frontend expects to receive a stream of Server-Sent Events (SSE) from the backend. Each event will be a JSON object with a `type` and a `payload`.
+
+| Type         | Payload                                                              | Description                                                                                             |
+| ------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `status`     | `"thinking"` or `"generating"`                                       | Informs the frontend of the AI's current high-level status, used to control UI states.                  |
+| `chunk`      | A string of text (e.g., `"Here's my plan:\n"`)                        | A token or chunk of the AI's natural language response to be appended to the current message bubble.    |
+| `command`    | A string representing a file operation (e.g., `<createFile ...>`)    | A command to be displayed in the chat, showing the AI's actions.                                        |
+| `code`       | `{ "html": "...", "css": "...", "js": "..." }`                        | The final, complete game code. This event signals the end of a successful generation.                   |
+| `error`      | A string with the error message (e.g., `"Failed to generate code."`) | Signals that an error has occurred. The payload should be displayed in a toast and the GamePanel.       |
+
+## 5. Technical Requirements
 
 -   **Framework:** React (v18) with Vite
 -   **Language:** TypeScript
 -   **Styling:** Tailwind CSS with `shadcn/ui`.
--   **3D Graphics:** `three.js` with `@react-three/fiber` and `@react-three/drei` for the Home Page background.
--   **State Management:**
-    -   React Router state for passing the initial prompt.
-    -   A client-side state management solution (React Context or a lightweight library) is required to manage the complex session state (chat history, game code, AI status, etc.).
--   **API Communication:**
-    -   The API client must support **streaming** to handle the real-time responses from the backend.
-    -   The frontend will send the initial prompt and subsequent iterative prompts to the backend.
-    -   It will receive a stream of text and commands from the backend, which it will parse and display in the chat interface. The final output will include the full game code to be rendered in the preview.
+    -   **Fonts:** `Orbitron` for headings, `Rajdhani` for body text.
+    -   **Icons:** `lucide-react`.
+-   **3D Graphics:** `three.js` with `@react-three/fiber` and `@react-three/drei`.
+-   **State Management:** React Context for session state.
+-   **API Communication:** A dedicated API client using the native `fetch` API to handle the SSE stream.
 
-## 5. Out of Scope for V1
+## 6. Out of Scope for V1
 
 -   User accounts and project saving.
--   Real-time collaborative editing.
 -   Manual asset uploading.
 -   Game sharing functionality.
