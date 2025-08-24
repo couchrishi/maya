@@ -7,9 +7,13 @@ import asyncio
 import time
 from typing import Dict, Any, Optional
 import uuid
-from maya_integration import maya_service
+from api.maya_integration import maya_service
+from api.mock_endpoint import mock_router
 
 app = FastAPI(title="Maya AI Game Creation API", version="1.0.0")
+
+# Include the mock router
+app.include_router(mock_router)
 
 # Add CORS middleware to allow frontend connections
 app.add_middleware(
@@ -20,9 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory session store for conversation persistence
-# In production, this should be Redis or a database
-session_store: Dict[str, Dict[str, Any]] = {}
+# Session state is now handled by ADK's InMemorySessionService
 
 class GameRequest(BaseModel):
     prompt: str
@@ -462,8 +464,7 @@ async def generate_game_real_stream(request: ChatMessage):
         async for event in maya_service.generate_game_stream(
             prompt=request.prompt,
             session_id=session_id,
-            user_id=request.user_id,
-            session_store=session_store
+            user_id=request.user_id
         ):
             yield event
     
