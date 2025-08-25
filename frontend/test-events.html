@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Routing Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .container { display: flex; gap: 20px; }
+        .box { border: 2px solid #ccc; padding: 10px; width: 300px; height: 400px; overflow-y: auto; }
+        .chat-box { border-color: #9333ea; }
+        .code-box { border-color: #10b981; }
+        .events-box { border-color: #f59e0b; }
+        button { margin: 5px; padding: 10px; }
+        .event-log { font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Frontend Event Routing Test</h1>
+    
+    <div>
+        <button onclick="testMixedStream()">Test Mixed Stream</button>
+        <button onclick="testCodeOnly()">Test Code Only</button>
+        <button onclick="testChatOnly()">Test Chat Only</button>
+        <button onclick="clearAll()">Clear All</button>
+    </div>
+
+    <div class="container">
+        <div class="box chat-box">
+            <h3>Chat Text (Purple Box)</h3>
+            <div id="chat-content"></div>
+        </div>
+        
+        <div class="box code-box">
+            <h3>Code Stream (Green Box)</h3>
+            <div id="code-content"></div>
+        </div>
+        
+        <div class="box events-box">
+            <h3>Raw Events Log</h3>
+            <div id="events-log" class="event-log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Simulate the frontend event handling logic
+        let chatContent = '';
+        let codeContent = '';
+        
+        const chatDiv = document.getElementById('chat-content');
+        const codeDiv = document.getElementById('code-content');
+        const eventsLog = document.getElementById('events-log');
+
+        // Simulate ChatInterface handleChatEvent function
+        function handleChatEvent(event) {
+            logEvent('CHAT HANDLER', event);
+            
+            switch (event.type) {
+                case 'chunk':
+                    // Backend now properly routes content - chunks are explanation text only
+                    if (typeof event.payload === 'string') {
+                        chatContent += event.payload;
+                        updateChatDisplay();
+                    }
+                    break;
+                
+                case 'code_chunk':
+                    // Code chunks go directly to CodeStreamBox via game context
+                    // No need to add to chat - they're handled by the game context
+                    logEvent('CHAT HANDLER', 'Ignoring code_chunk event');
+                    break;
+                
+                case 'command':
+                    if (typeof event.payload === 'string') {
+                        const commandMatch = event.payload.match(/<(\w+)>([^<]+)</);
+                        if (commandMatch) {
+                            const commandContent = commandMatch[2];
+                            chatContent += `\n\n🔧 ${commandContent}\n`;
+                        } else {
+                            chatContent += `\n\n🔧 ${event.payload}\n`;
+                        }
+                        updateChatDisplay();
+                    }
+                    break;
+                
+                case 'error':
+                    chatContent += `\n\n❌ Error: ${event.payload}`;
+                    updateChatDisplay();
+                    break;
+            }
+        }
+
+        // Simulate GameContext code_chunk handler
+        function handleGameEvent(event) {
+            logEvent('GAME HANDLER', event);
+            
+            switch (event.type) {
+                case 'code_chunk':
+                    if (typeof event.payload === 'string' && event.payload.trim()) {
+                        codeContent += event.payload;
+                        updateCodeDisplay();
+                    }
+                    break;
+                
+                case 'chunk':
+                    // Forward to chat
+                    handleChatEvent(event);
+                    break;
+                
+                case 'command':
+                case 'error':
+                    // Forward to chat
+                    handleChatEvent(event);
+                    break;
+            }
+        }
+
+        function logEvent(handler, event) {
+            const logEntry = typeof event === 'string' ? 
+                `[${handler}] ${event}` : 
+                `[${handler}] ${event.type}: ${typeof event.payload === 'string' ? event.payload.substring(0, 50) + '...' : event.payload}`;
+            eventsLog.innerHTML += logEntry + '<br>';
+            eventsLog.scrollTop = eventsLog.scrollHeight;
+        }
+
+        function updateChatDisplay() {
+            chatDiv.innerHTML = '<pre>' + chatContent + '</pre>';
+        }
+
+        function updateCodeDisplay() {
+            codeDiv.innerHTML = '<pre>' + codeContent + '</pre>';
+        }
+
+        function clearAll() {
+            chatContent = '';
+            codeContent = '';
+            chatDiv.innerHTML = '';
+            codeDiv.innerHTML = '';
+            eventsLog.innerHTML = '';
+        }
+
+        // Test scenarios
+        function testMixedStream() {
+            clearAll();
+            console.log('Testing mixed stream...');
+            
+            // Simulate backend events in order
+            const events = [
+                { type: 'chunk', payload: 'Let me create an amazing game for you!' },
+                { type: 'chunk', payload: '\n\n## Building Your Game\nI\'m crafting a sleek Snake game...' },
+                { type: 'chunk', payload: '\n\n```html\n' },
+                { type: 'code_chunk', payload: '<!DOCTYPE html>\n<html>\n<head>' },
+                { type: 'code_chunk', payload: '\n    <style>\n        body { margin: 0; }' },
+                { type: 'code_chunk', payload: '\n    </style>\n</head>' },
+                { type: 'chunk', payload: '\n```\n\n## Game Features\nClassic Snake gameplay...' }
+            ];
+            
+            events.forEach((event, index) => {
+                setTimeout(() => handleGameEvent(event), index * 200);
+            });
+        }
+
+        function testCodeOnly() {
+            clearAll();
+            console.log('Testing code only...');
+            
+            const events = [
+                { type: 'code_chunk', payload: '<canvas id="game"></canvas>' },
+                { type: 'code_chunk', payload: '\n<script>\n  const canvas = document.getElementById("game");' },
+                { type: 'code_chunk', payload: '\n  // Game logic here\n</script>' }
+            ];
+            
+            events.forEach((event, index) => {
+                setTimeout(() => handleGameEvent(event), index * 200);
+            });
+        }
+
+        function testChatOnly() {
+            clearAll();
+            console.log('Testing chat only...');
+            
+            const events = [
+                { type: 'chunk', payload: 'Hello! I\'m building a game for you.' },
+                { type: 'chunk', payload: '\n\nThis is explanation text only.' },
+                { type: 'command', payload: '<parseResponse>Extracting game code...</parseResponse>' }
+            ];
+            
+            events.forEach((event, index) => {
+                setTimeout(() => handleGameEvent(event), index * 200);
+            });
+        }
+
+        // Auto-run mixed stream test on load
+        setTimeout(testMixedStream, 500);
+    </script>
+</body>
+</html>
