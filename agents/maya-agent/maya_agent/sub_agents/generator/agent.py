@@ -1,6 +1,7 @@
 # /agents/maya-agent/maya_agent/sub_agents/generator/agent.py
 from google.adk.agents import LlmAgent
 from google.adk.events.event import Event
+from google.adk.events import EventActions
 from google.genai import types
 from .prompts import GENERATOR_INSTRUCTIONS
 from .streaming import StreamingContentProcessor
@@ -98,7 +99,7 @@ class GameCreatorAgent(LlmAgent):
             yield self._create_sse_event("error", f"Failed to generate game: {str(e)}")
             return
         
-        # Update conversation history with final state
+        # Add assistant response to conversation history and update state properly
         conversation_history.append({
             "role": "assistant", 
             "content": "Generated game successfully",
@@ -106,8 +107,15 @@ class GameCreatorAgent(LlmAgent):
             "timestamp": context.session.state.get('temp:current_time', 'unknown')
         })
         
-        # Save updated conversation history
-        session_state['conversation_history'] = conversation_history
+        # Yield final state update event with conversation history
+        yield Event(
+            author="agent",
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text="")]  # Empty content for state-only update
+            ),
+            actions=EventActions(state_delta={'conversation_history': conversation_history})
+        )
         
         # Game generation completed - streaming processor handles final messages
     
@@ -148,12 +156,11 @@ class GameCreatorAgent(LlmAgent):
                     "js": ""    # JS embedded in HTML
                 }
                 
-                # Update session state
-                session_state['current_game'] = game_data
-                session_state['last_action'] = 'game_creation'
-                
-                # Send final code event
-                yield self._create_sse_event("code", game_data)
+                # Send final code event with proper state management
+                yield self._create_sse_event_with_state("code", game_data, {
+                    'current_game': game_data,
+                    'last_action': 'game_creation'
+                })
         
         # Send features
         if features_match:
@@ -197,6 +204,21 @@ Your task is to generate the complete, updated game code based on this new reque
                     )
                 ]
             )
+        )
+    
+    def _create_sse_event_with_state(self, event_type: str, payload, state_delta: dict) -> Event:
+        """Create SSE event with proper ADK state management."""
+        return Event(
+            author="agent",
+            content=types.Content(
+                role="model",
+                parts=[
+                    types.Part(
+                        text=json.dumps({'type': event_type, 'payload': payload})
+                    )
+                ]
+            ),
+            actions=EventActions(state_delta=state_delta)
         )
 
 # Create the game creator agent instance

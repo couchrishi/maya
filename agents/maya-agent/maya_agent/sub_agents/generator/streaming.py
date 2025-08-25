@@ -85,11 +85,7 @@ class StreamingContentProcessor:
                 "js": ""    # JS embedded in HTML
             }
             
-            # Update session state
-            self.session_state['current_game'] = game_data
-            self.session_state['last_action'] = 'game_creation'
-            
-            # Send structured code event
+            # Send structured code event (state will be handled by agent)
             yield self._create_sse_event("code", game_data)
             self.html_code_complete = True
     
@@ -187,11 +183,7 @@ class StreamingContentProcessor:
                         "js": ""    # JS embedded in HTML
                     }
                     
-                    # Update session state
-                    self.session_state['current_game'] = game_data
-                    self.session_state['last_action'] = 'game_creation'
-                    
-                    # Send structured code event
+                    # Send structured code event (state will be handled by agent)
                     yield self._create_sse_event("code", game_data)
                     self.html_code_complete = True
                 

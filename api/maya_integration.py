@@ -68,7 +68,7 @@ class MayaAgentService:
             # Configure for real SSE streaming 
             run_config = RunConfig(
                 streaming_mode=StreamingMode.SSE,
-                max_llm_calls=5
+                max_llm_calls=20  # Increased to allow Firebase MCP configuration and deployment
             )
             
             # Run the orchestrator agent (which delegates to GameCreatorAgent)
