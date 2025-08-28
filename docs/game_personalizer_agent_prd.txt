@@ -1,0 +1,235 @@
+Game Personalizer Agent - Product Requirements Document
+Asset Generation & Visual Customization Specialist
+1. Product Overview
+Vision
+A specialized agent that handles all asset generation, visual customization, and upload-based personalization for HTML5 games, while the Game Creator Agent continues handling game mechanics and basic modifications.
+Problem Statement
+
+Users want custom visual assets that don't exist in standard game generation
+Photo uploads need intelligent processing to become game-compatible assets
+AI-generated assets require specialized prompting and quality control
+Visual modifications need different expertise than game logic modifications
+
+Solution
+A Game Personalizer Agent focused exclusively on creating, modifying, and integrating visual assets, working in parallel with the existing Game Creator Agent.
+2. Scope & Boundaries
+Game Personalizer Agent Responsibilities
+
+Asset Generation: Create new visual elements using AI (backgrounds, characters, props, effects)
+Photo Processing: Transform user uploads into game-compatible assets
+Asset Modification: Alter existing game assets (recoloring, restyling, enhancing)
+Visual Customization: Apply style transfers, themes, and aesthetic changes
+Asset Integration: Inject processed/generated assets into games
+
+Game Creator Agent Responsibilities (Unchanged)
+
+Game logic and mechanics modifications
+Adding gameplay features (power-ups, levels, scoring)
+Performance optimizations
+Bug fixes and code improvements
+Standard follow-up modifications without visual asset needs
+
+3. Request Routing Logic
+Route to Game Personalizer Agent When:
+
+Upload Involved: "Add my photo as the player character"
+Asset Generation: "Create a mystical forest background"
+Visual Modification: "Make the spaceship look more futuristic"
+Style Changes: "Convert everything to pixel art style"
+Character Creation: "Generate a robot companion character"
+Prop Addition: "Add glowing magical weapons"
+Theme Application: "Make it look like a retro arcade game"
+
+Route to Game Creator Agent When:
+
+Mechanics: "Add a jump feature to the player"
+Gameplay: "Include power-ups that increase speed"
+Rules: "Make the enemies move faster each level"
+Features: "Add a score multiplier system"
+Performance: "Optimize the game for mobile"
+Bug Fixes: "Fix the collision detection"
+
+Hybrid Requests:
+
+Complex: "Add my photo as the pilot AND include missile firing"
+
+Game Personalizer: Process photo, create pilot avatar
+Game Creator: Add missile firing mechanics
+Coordinate between agents
+
+
+
+4. Core Capabilities
+4.1 AI Asset Generation Engine
+
+Text-to-Image: Generate backgrounds, characters, props from descriptions
+Style-Aware Generation: Create assets matching existing game aesthetics
+Contextual Generation: Generate appropriate assets for specific game types
+Variation Creation: Produce multiple options for user selection
+Quality Control: Ensure generated assets meet game integration standards
+
+4.2 Photo Processing Pipeline
+
+Face Detection: Extract faces for character creation
+Background Removal: Isolate subjects for clean integration
+Object Recognition: Identify props, vehicles, pets for game integration
+Style Matching: Adapt photos to match game art style
+Quality Enhancement: Improve low-resolution or poor-quality uploads
+
+4.3 Asset Modification System
+
+Recoloring: Change colors while maintaining form and function
+Style Transfer: Apply artistic styles to existing assets
+Scale Adaptation: Resize assets for different game contexts
+Enhancement: Improve visual quality of existing game assets
+Animation Preparation: Create sprite sheets for animated elements
+
+4.4 Visual Theme Engine
+
+Consistent Styling: Apply cohesive visual themes across all game assets
+Art Style Conversion: Transform between realistic, cartoon, pixel art, etc.
+Mood Adjustment: Alter lighting, colors, effects for different atmospheres
+Brand Integration: Apply color schemes, logos, visual identity elements
+
+5. User Experience Flows
+5.1 Photo Upload Flow
+
+User: "Add my dog as a companion in this adventure game"
+Agent: "I'll need a photo of your dog to create the companion character"
+User uploads dog photo
+Agent processes photo, creates animated companion sprite
+Agent integrates companion into game with appropriate behaviors
+User receives game with personalized dog companion
+
+5.2 AI Generation Flow
+
+User: "Create a haunted mansion background for this mystery game"
+Agent analyzes current game style and requirements
+Agent generates haunted mansion background matching game aesthetic
+Agent presents preview: "Here's the haunted mansion I created"
+User approves or requests modifications
+Agent integrates background into game
+
+5.3 Style Modification Flow
+
+User: "Make this racing game look like it's from the 1980s"
+Agent analyzes all visual elements in the game
+Agent applies 80s aesthetic (neon colors, retro fonts, synthwave elements)
+Agent shows before/after preview
+User confirms changes
+Agent delivers retro-styled game
+
+5.4 Complex Multi-Asset Flow
+
+User: "Add my photo as the hero, create a magical sword weapon, and make the background look like ancient ruins"
+Agent processes photo for hero character
+Agent generates magical sword with appropriate effects
+Agent creates ancient ruins background
+Agent shows preview of all three elements
+User approves or requests adjustments
+Agent integrates all assets into cohesive game experience
+
+6. Technical Requirements
+6.1 Asset Generation Capabilities
+
+Multiple AI Models: Access to various image generation models for different asset types
+Style Consistency: Maintain visual coherence across generated assets
+Game Optimization: Ensure assets are web-optimized for performance
+Format Support: Generate appropriate formats (PNG, SVG, sprite sheets)
+
+6.2 Photo Processing Requirements
+
+Format Support: Handle JPEG, PNG, HEIC, WebP uploads up to 10MB
+Quality Enhancement: Improve resolution, lighting, clarity of source images
+Smart Cropping: Intelligently extract relevant portions of photos
+Background Handling: Remove/replace backgrounds while preserving subject quality
+
+6.3 Game Integration Requirements
+
+Non-Destructive: Preserve existing game functionality during asset integration
+Style Matching: Ensure new assets visually integrate with existing elements
+Performance Maintenance: Keep games performant after asset additions
+Responsive Design: Ensure assets work across different screen sizes
+
+6.4 Quality Assurance
+
+Visual Review: Automated quality checks for generated/processed assets
+Compatibility Testing: Ensure assets work properly within game context
+Fallback Systems: Graceful degradation when asset processing fails
+User Approval: Preview system for user acceptance before final integration
+
+7. System Integration
+7.1 Orchestrator Integration
+
+Request Classification: Identify asset-related requests vs. mechanics requests
+Agent Coordination: Manage handoffs between Personalizer and Creator agents
+Progress Tracking: Monitor asset generation and integration progress
+Result Synthesis: Combine outputs when both agents are involved
+
+7.2 MCP Tools Integration
+
+Image Processing: Connect to computer vision and image editing services
+AI Generation: Interface with text-to-image generation APIs
+Style Transfer: Access to artistic style transfer models
+Quality Assessment: Automated asset quality evaluation tools
+
+7.3 Asset Management
+
+Temporary Storage: Securely store uploaded and generated assets during processing
+Version Control: Track original and processed versions of assets
+Cleanup: Remove temporary assets after game integration
+Caching: Cache commonly requested assets for performance
+
+8. Success Metrics
+8.1 Processing Success
+
+95%+ successful asset generation from valid text descriptions
+90%+ successful photo processing for compatible uploads
+<45 seconds average processing time for typical asset requests
+98%+ asset integration success without breaking game functionality
+
+8.2 Quality Metrics
+
+4.5/5 average user satisfaction with generated/processed assets
+85%+ first-attempt approval rate for generated assets
+<10% revision requests for processed assets
+Zero game-breaking integrations in production
+
+8.3 User Experience
+
+Intuitive request handling: Users naturally describe what they want
+Clear progress feedback: Users understand what's happening during processing
+Quick iteration cycles: Users can easily request modifications
+Seamless integration: Assets feel like natural parts of their games
+
+9. Constraints & Limitations
+9.1 Technical Constraints
+
+Processing Time: Complex assets may require 30-60 seconds to generate
+Upload Limits: 10MB per file, 20 files per request maximum
+Style Limitations: Some art styles may not translate well to all game types
+Resolution Boundaries: Output limited by game display requirements
+
+9.2 Content Constraints
+
+Appropriate Content: All generated/processed assets must be family-friendly
+Copyright Respect: Cannot recreate copyrighted characters or branded content
+Quality Thresholds: Low-quality uploads may not process successfully
+Game Compatibility: Some assets may not suit certain game genres
+
+10. Future Enhancements
+10.1 Advanced Generation
+
+3D Asset Creation: Generate 3D models for more sophisticated games
+Animated Assets: Create animated characters and effects
+Interactive Elements: Generate assets that respond to game events
+Procedural Systems: Create asset generation rules for dynamic games
+
+10.2 Enhanced Intelligence
+
+Contextual Awareness: Better understanding of what assets fit which games
+User Learning: Remember user preferences and style choices
+Predictive Generation: Suggest assets based on game context
+Collaborative Creation: Multi-user asset creation and approval workflows
+
+This focused approach allows the Game Personalizer Agent to excel at visual creativity while the Game Creator Agent continues handling game logic expertise, creating a powerful collaborative system for comprehensive game customization.

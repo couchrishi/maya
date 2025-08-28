@@ -2,7 +2,7 @@
 
 export interface SSEEvent {
   type: 'status' | 'chunk' | 'code_chunk' | 'command' | 'code' | 'error' | 'explanation' | 'features' | 'suggestions' 
-       | 'publish_status' | 'publish_success' | 'publish_error' | 'publish_message';
+       | 'publish_status' | 'publish_success' | 'publish_error' | 'publish_message' | 'stream_complete';
   payload: any;
 }
 
@@ -29,14 +29,15 @@ class MayaAPIService {
    */
   async generateGame(
     request: ChatRequest,
-    onEvent: (event: SSEEvent) => void
+    onEvent: (event: SSEEvent) => void,
+    useRealAgent: boolean = true
   ): Promise<void> {
     if (this.currentController) {
       this.currentController.abort();
     }
     this.currentController = new AbortController();
     
-    const url = `${this.baseURL}/generate-game-real`;
+    const url = useRealAgent ? `${this.baseURL}/generate-game-real` : `${this.baseURL}/generate-game`;
 
     try {
       const response = await fetch(url, {
@@ -80,7 +81,11 @@ class MayaAPIService {
             const data = line.slice(6); // Remove 'data: ' prefix
             
             if (data === '[DONE]') {
-              // Stream completed
+              // Stream completed - notify that we should poll for assets
+              onEvent({
+                type: 'stream_complete',
+                payload: 'ready_for_asset_polling'
+              });
               return;
             }
 

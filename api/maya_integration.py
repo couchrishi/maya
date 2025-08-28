@@ -9,21 +9,23 @@ from maya_agent.agent import orchestrator_agent
 from maya_agent.schemas import GameRequest
 from google.adk.runners import Runner, RunConfig
 from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts import GcsArtifactService
 from google.adk.agents.run_config import StreamingMode
 from google.genai import types
 import uuid
-
-# Removed StreamingState class - GameCreatorAgent now handles event classification internally
 
 class MayaAgentService:
     """Service to integrate the real Maya agent with FastAPI SSE streaming."""
     
     def __init__(self):
         self.session_service = InMemorySessionService()
+        # Use GCS for persistent asset storage
+        self.artifact_service = GcsArtifactService(bucket_name="maya-artifacts")
         self.runner = Runner(
             agent=orchestrator_agent,  # Updated to use orchestrator_agent
             app_name="maya_api",
-            session_service=self.session_service
+            session_service=self.session_service,
+            artifact_service=self.artifact_service
         )
     
     async def ensure_session(self, session_id: str, user_id: str = "api_user") -> str:
@@ -79,13 +81,13 @@ class MayaAgentService:
                 run_config=run_config
             )
             
-            # Stream events directly from the agent
+            # Stream events directly from the agent (agent now handles SSE formatting)
             async for event in events:
                 if hasattr(event, 'content') and event.content and event.content.parts:
                     # Extract the JSON payload from the event
                     event_text = event.content.parts[0].text
                     
-                    # Forward as SSE event
+                    # Forward as SSE event - agent already formats as JSON
                     yield f"data: {event_text}\n\n"
             
         except Exception as e:

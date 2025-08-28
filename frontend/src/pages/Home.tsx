@@ -11,16 +11,16 @@ export default function Home() {
 
   const templates = [
     {
-      title: "Voxel Forest",
-      description: "Adventure games with blocky 3D worlds",
-      icon: "🌲",
-      prompt: "Create a voxel forest adventure game where players explore and collect items"
+      title: "Space Explorer",
+      description: "Sci-fi adventures in the cosmos",
+      icon: "🚀",
+      prompt: "Create a space exploration game with planets, aliens, and starships"
     },
     {
-      title: "Aliens Platformer",
-      description: "2D platformer with alien characters",
-      icon: "👽",
-      prompt: "Create a 2D platformer game with alien characters and space themed levels"
+      title: "Tower Defense",
+      description: "Strategic defense games with waves of enemies",
+      icon: "🏰",
+      prompt: "Create a tower defense game where players build defenses against enemy waves"
     },
     {
       title: "Create from Scratch",
@@ -82,7 +82,7 @@ export default function Home() {
               CREATE WITH MAYA AI
             </h1>
             <p className="text-xl text-muted-foreground font-rajdhani">
-              Vibe Code Games
+              AI-Powered Game Development
             </p>
           </div>
 
@@ -165,7 +165,7 @@ export default function Home() {
           {/* Bottom CTA */}
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-4">
-              Powered by advanced AI • Create games in minutes, not months
+              Powered by Google ADK • Create games in minutes, not months
             </p>
             <div className="flex items-center justify-center space-x-6 text-xs text-muted-foreground">
               <span>🎮 Any Genre</span>

@@ -1,11 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel
 import json
 import asyncio
 import time
-from typing import Dict, Any, Optional
+import os
+import base64
+from typing import Dict, Any, Optional, List
 import uuid
 from api.maya_integration import maya_service
 from api.mock_endpoint import mock_router
@@ -34,6 +36,21 @@ class ChatMessage(BaseModel):
     prompt: str
     session_id: str = None
     user_id: str = "default_user"
+
+# Asset-related models
+class AssetInfo(BaseModel):
+    filename: str
+    category: str
+    gcs_url: str
+    local_path: str = None
+    size_bytes: int
+    timestamp: str
+    status: str = "completed"
+
+class AssetListResponse(BaseModel):
+    assets: List[AssetInfo]
+    total_count: int
+    session_id: str
 
 # Mock game templates for quick generation
 GAME_TEMPLATES = {
@@ -412,6 +429,169 @@ async def generate_mock_sse_stream(prompt: str, session_id: str):
     
     # End stream
     yield "data: [DONE]\n\n"
+
+# Asset API endpoints
+@app.get("/assets/{session_id}", response_model=AssetListResponse)
+async def get_session_assets(session_id: str):
+    """Get all assets generated for a specific session from GCS directly."""
+    try:
+        from google.cloud import storage
+        
+        # Initialize GCS client
+        client = storage.Client()
+        bucket = client.bucket("maya-artifacts")
+        
+        session_assets = []
+        
+        print(f"📍 Looking for assets in session {session_id}")
+        
+        # Dynamically discover all PNG assets under the session path
+        # Path pattern: maya_api/maya_user/{session_id}/
+        session_prefix = f"maya_api/maya_user/{session_id}/"
+        
+        try:
+            # List all blobs under the session prefix
+            blobs = bucket.list_blobs(prefix=session_prefix)
+            
+            for blob in blobs:
+                # Check if this is a PNG asset (ends with .png/0 or .png/1, etc.)
+                if '.png/' in blob.name:
+                    # Extract filename from path like: maya_api/maya_user/{session_id}/asset_1.png/0
+                    path_parts = blob.name.split('/')
+                    if len(path_parts) >= 4:
+                        filename_with_ext = path_parts[3]  # e.g., "asset_1.png"
+                        version = path_parts[4] if len(path_parts) > 4 else "0"  # version number
+                        
+                        # Extract base filename without extension for category
+                        filename_base = filename_with_ext.replace('.png', '')
+                        
+                        # Get blob metadata
+                        blob.reload()
+                        size_bytes = blob.size or 0
+                        
+                        asset_info = AssetInfo(
+                            filename=filename_with_ext,
+                            category=filename_base,  # Use filename as category (asset_1, asset_2, etc.)
+                            gcs_url=f"gs://maya-artifacts/{blob.name}",
+                            preview_url=f"http://localhost:8000/assets/{session_id}/{filename_with_ext}/preview",
+                            size_bytes=size_bytes,
+                            timestamp=blob.time_created.isoformat() if blob.time_created else time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                            status="completed"
+                        )
+                        session_assets.append(asset_info)
+                        print(f"✅ Found asset in GCS: {blob.name} ({size_bytes} bytes)")
+                        
+        except Exception as discovery_error:
+            print(f"⚠️ Error discovering assets under {session_prefix}: {discovery_error}")
+        
+        print(f"📊 Found {len(session_assets)} assets for session {session_id}")
+        
+        return AssetListResponse(
+            assets=session_assets,
+            total_count=len(session_assets),
+            session_id=session_id
+        )
+        
+    except Exception as e:
+        print(f"❌ Failed to retrieve assets for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve assets: {str(e)}")
+
+@app.get("/assets/{session_id}/{filename}/preview")
+async def get_asset_preview(session_id: str, filename: str):
+    """Serve an asset file preview directly from GCS."""
+    try:
+        from google.cloud import storage
+        
+        print(f"📥 Serving asset preview: {filename} for session {session_id}")
+        
+        # Initialize GCS client
+        client = storage.Client()
+        bucket = client.bucket("maya-artifacts")
+        
+        # Build GCS blob path: maya_api/maya_user/{session_id}/{filename}/0
+        blob_path = f"maya_api/maya_user/{session_id}/{filename}/0"
+        
+        try:
+            # Get blob from GCS
+            blob = bucket.blob(blob_path)
+            
+            if blob.exists():
+                # Download blob data
+                blob_data = blob.download_as_bytes()
+                
+                print(f"✅ Found asset {filename} in GCS, serving {len(blob_data)} bytes")
+                
+                # Return the PNG data directly from GCS
+                return Response(
+                    content=blob_data,
+                    media_type="image/png",
+                    headers={
+                        "Content-Disposition": f"inline; filename={filename}",
+                        "Cache-Control": "public, max-age=3600",
+                        "Access-Control-Allow-Origin": "*"
+                    }
+                )
+            else:
+                print(f"❌ Asset {filename} not found in GCS at {blob_path}")
+                raise HTTPException(status_code=404, detail=f"Asset {filename} not found in GCS")
+                
+        except Exception as gcs_error:
+            print(f"❌ GCS error for {filename}: {gcs_error}")
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Asset {filename} not found in GCS: {str(gcs_error)}"
+            )
+        
+    except Exception as e:
+        print(f"❌ Failed to serve asset {filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to serve asset: {str(e)}")
+
+@app.get("/assets/{session_id}/{filename}/base64")
+async def get_asset_base64(session_id: str, filename: str):
+    """Get an asset as base64 encoded data from GCS for frontend display."""
+    try:
+        from google.cloud import storage
+        
+        print(f"📦 Serving base64 asset: {filename} for session {session_id}")
+        
+        # Initialize GCS client
+        client = storage.Client()
+        bucket = client.bucket("maya-artifacts")
+        
+        # Build GCS blob path: maya_api/maya_user/{session_id}/{filename}/0
+        blob_path = f"maya_api/maya_user/{session_id}/{filename}/0"
+        
+        try:
+            # Get blob from GCS
+            blob = bucket.blob(blob_path)
+            
+            if blob.exists():
+                # Download blob data
+                file_content = blob.download_as_bytes()
+                base64_data = base64.b64encode(file_content).decode('utf-8')
+                
+                print(f"✅ Encoded {filename} as base64: {len(base64_data)} chars")
+                
+                return {
+                    "filename": filename,
+                    "base64_data": base64_data,
+                    "mime_type": "image/png",
+                    "size_bytes": len(file_content),
+                    "source": "gcs_direct"
+                }
+            else:
+                raise HTTPException(status_code=404, detail=f"Asset {filename} not found in GCS")
+                
+        except Exception as gcs_error:
+            print(f"❌ GCS error for base64 {filename}: {gcs_error}")
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Asset {filename} not found in GCS: {str(gcs_error)}"
+            )
+        
+    except Exception as e:
+        print(f"❌ Failed to encode asset {filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to encode asset: {str(e)}")
 
 @app.get("/")
 async def root():

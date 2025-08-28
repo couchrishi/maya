@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Download, Share, Image, Code, Eye, Gamepad2 } from "lucide-react";
+import { Play, Download, Share, Image, Code, Eye, Gamepad2, Brain } from "lucide-react";
 import { useGame } from "@/contexts/GameContext";
+import { AgentFlowPanel } from "./AgentFlowPanel";
 
 export function GamePanel() {
   const { gameState } = useGame();
@@ -232,23 +233,37 @@ export function GamePanel() {
 </body>
 </html>`;
 
-  const sampleAssets = [
-    { name: "game-icons.svg", type: "image", size: "24KB" },
-    { name: "cyberpunk-bg.jpg", type: "image", size: "156KB" },
-    { name: "neon-button.css", type: "style", size: "8KB" },
-    { name: "sound-effects.mp3", type: "audio", size: "45KB" },
-  ];
+  // Helper function to format bytes
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Helper function to get category display name
+  const getCategoryDisplayName = (category: string): string => {
+    return category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
 
   return (
     <div className="h-full flex flex-col">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-3 bg-muted/20 backdrop-blur">
+        <TabsList className="grid w-full grid-cols-4 bg-muted/20 backdrop-blur">
           <TabsTrigger 
             value="preview" 
             className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-[var(--shadow-neon)]"
           >
             <Eye className="w-4 h-4 mr-2" />
             Preview
+          </TabsTrigger>
+          <TabsTrigger 
+            value="agents"
+            className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 data-[state=active]:shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+          >
+            <Brain className="w-4 h-4 mr-2" />
+            Agents
           </TabsTrigger>
           <TabsTrigger 
             value="assets"
@@ -387,40 +402,191 @@ export function GamePanel() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="agents" className="flex-1">
+          <AgentFlowPanel />
+        </TabsContent>
+
         <TabsContent value="assets" className="flex-1 p-4">
           <Card className="h-full bg-background/50 border-secondary/30 backdrop-blur">
             <CardHeader>
-              <CardTitle className="text-secondary font-orbitron">Game Assets</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-secondary font-orbitron">Game Assets</CardTitle>
+                <div className="flex items-center space-x-2">
+                  {gameState.assets.isGenerating && (
+                    <div className="flex items-center space-x-2 text-xs text-secondary">
+                      <div className="w-2 h-2 bg-secondary rounded-full animate-pulse"></div>
+                      <span>Generating...</span>
+                    </div>
+                  )}
+                  {gameState.assets.progress.total_requested > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {gameState.assets.progress.total_generated}/{gameState.assets.progress.total_requested} assets
+                    </div>
+                  )}
+                </div>
+              </div>
+              {gameState.assets.progress.current_step !== 'idle' && (
+                <div className="text-xs text-muted-foreground mt-2">
+                  {gameState.assets.progress.current_step}
+                </div>
+              )}
             </CardHeader>
-            <CardContent className="space-y-3">
-              {sampleAssets.map((asset, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border border-secondary/20 hover:border-secondary/40 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-lg bg-secondary/20 flex items-center justify-center">
-                      <Image className="w-4 h-4 text-secondary" />
+            <CardContent className="space-y-4">
+              {gameState.assets.assets.length > 0 ? (
+                <>
+                  {/* Asset Gallery Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {gameState.assets.assets.map((asset, index) => (
+                      <div
+                        key={index}
+                        className="bg-muted/20 rounded-lg border border-secondary/20 hover:border-secondary/40 transition-all duration-300 overflow-hidden group"
+                      >
+                        {/* Asset Preview */}
+                        <div className="aspect-square bg-gradient-to-br from-secondary/10 to-accent/10 relative overflow-hidden">
+                          {asset.preview_url ? (
+                            <img
+                              src={asset.preview_url}
+                              alt={getCategoryDisplayName(asset.category)}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              onError={(e) => {
+                                // Fallback to icon if image fails to load
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                target.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : null}
+                          {/* Fallback icon */}
+                          <div className="absolute inset-0 flex items-center justify-center text-secondary/50">
+                            <Image className="w-12 h-12" />
+                          </div>
+                          
+                          {/* Status overlay */}
+                          <div className="absolute top-2 right-2">
+                            <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              asset.status === 'completed' 
+                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                : asset.status === 'generating'
+                                ? 'bg-secondary/20 text-secondary border border-secondary/30'
+                                : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                            }`}>
+                              {asset.status === 'completed' && '✓'}
+                              {asset.status === 'generating' && '⏳'}
+                              {asset.status === 'error' && '❌'}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Asset Info */}
+                        <div className="p-3 space-y-2">
+                          <div>
+                            <h3 className="text-sm font-medium text-foreground">
+                              {getCategoryDisplayName(asset.category)}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              PNG • {formatBytes(asset.size_bytes)}
+                            </p>
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex space-x-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="border-secondary/30 hover:border-secondary/50 flex-1"
+                              onClick={() => {
+                                if (asset.preview_url) {
+                                  window.open(asset.preview_url, '_blank');
+                                }
+                              }}
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              View
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="border-secondary/30 hover:border-secondary/50"
+                              onClick={() => {
+                                if (asset.preview_url) {
+                                  const link = document.createElement('a');
+                                  link.href = asset.preview_url;
+                                  link.download = asset.filename;
+                                  link.click();
+                                }
+                              }}
+                            >
+                              <Download className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Asset Generation Summary */}
+                  {gameState.assets.progress.total_requested > 0 && (
+                    <div className="mt-6 p-4 bg-muted/10 rounded-lg border border-secondary/20">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Generation Progress</span>
+                        <span className="text-xs text-muted-foreground">
+                          {gameState.assets.progress.total_generated}/{gameState.assets.progress.total_requested} completed
+                        </span>
+                      </div>
+                      <div className="w-full bg-muted/20 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-secondary to-accent h-2 rounded-full transition-all duration-300"
+                          style={{ 
+                            width: `${(gameState.assets.progress.total_generated / gameState.assets.progress.total_requested) * 100}%` 
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : gameState.assets.isGenerating ? (
+                <div className="flex items-center justify-center h-40">
+                  <div className="text-center space-y-4">
+                    <div className="w-16 h-16 mx-auto bg-gradient-to-r from-secondary/20 to-accent/20 rounded-lg flex items-center justify-center">
+                      <div className="w-8 h-8 border-2 border-secondary border-t-transparent rounded-full animate-spin"></div>
                     </div>
                     <div>
-                      <p className="text-sm font-medium">{asset.name}</p>
-                      <p className="text-xs text-muted-foreground">{asset.type} • {asset.size}</p>
+                      <h3 className="font-orbitron font-bold text-lg text-secondary mb-2">
+                        Generating Assets
+                      </h3>
+                      <p className="text-sm text-muted-foreground max-w-xs">
+                        Maya is creating visual assets for your game. This may take a few moments.
+                      </p>
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" className="border-secondary/30">
-                    <Download className="w-3 h-3" />
-                  </Button>
                 </div>
-              ))}
+              ) : (
+                <div className="flex items-center justify-center h-40">
+                  <div className="text-center space-y-4">
+                    <div className="w-16 h-16 mx-auto bg-gradient-to-r from-secondary/20 to-accent/20 rounded-lg flex items-center justify-center">
+                      <Image className="w-8 h-8 text-secondary" />
+                    </div>
+                    <div>
+                      <h3 className="font-orbitron font-bold text-lg text-secondary mb-2">
+                        No assets generated yet
+                      </h3>
+                      <p className="text-sm text-muted-foreground max-w-xs">
+                        Assets will appear here when you create a game with graphics. 
+                        Try asking Maya to "create a game with visual assets".
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               
-              <div className="mt-6 text-center">
-                <Button 
-                  className="bg-gradient-to-r from-secondary to-accent hover:from-secondary/80 hover:to-accent/80"
-                >
-                  <Image className="w-4 h-4 mr-2" />
-                  Upload New Asset
-                </Button>
-              </div>
+              {gameState.assets.error && (
+                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-red-400 text-sm">⚠️</span>
+                    <span className="text-red-400 text-sm">{gameState.assets.error}</span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

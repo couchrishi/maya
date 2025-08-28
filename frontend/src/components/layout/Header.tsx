@@ -19,24 +19,20 @@ export function Header() {
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-3">
           <div 
-            className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-cyber)] flex items-center justify-center overflow-hidden"
+            className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-secondary shadow-[var(--shadow-cyber)] flex items-center justify-center overflow-hidden hover:scale-105 transition-transform"
             style={{
               backgroundImage: `url(${mayaLogo})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center'
             }}
           >
-            <span className="text-background font-orbitron font-black text-sm">M</span>
           </div>
           <div>
-            <h1 
-              className="text-2xl font-orbitron font-black text-primary neon-pulse glitch" 
-              data-text="MAYA"
-            >
-              MAYA
-            </h1>
-            <p className="text-xs text-muted-foreground -mt-1">
+            <p className="text-sm font-medium text-foreground">
               AI Game Creator
+            </p>
+            <p className="text-xs text-muted-foreground -mt-0.5">
+              Powered by Google ADK
             </p>
           </div>
         </div>

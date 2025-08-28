@@ -1,0 +1,8 @@
+Game Description: A cyberpunk game with a cyborg rogue, an enemy drone, and a neon-lit skyscraper
+Generation Time: 20250826_203240
+Assets Generated: 3/3
+
+GCS ADK Artifacts Saved:
+- primary_character: primary_character.png (stored in maya-artifacts bucket)
+- interactive_object: interactive_object.png (stored in maya-artifacts bucket)
+- environmental_element: environmental_element.png (stored in maya-artifacts bucket)

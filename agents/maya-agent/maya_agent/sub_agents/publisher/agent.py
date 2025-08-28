@@ -6,7 +6,7 @@ from google.genai import types
 from .prompts import PUBLISHER_INSTRUCTIONS
 from .schemas import FirebaseConfig
 from .tools_adk import create_hosting_tools, publish_game
-from maya_agent.config import MODEL_NAME
+from maya_agent.config import FAST_MODEL_NAME
 import json
 from typing import AsyncGenerator
 
@@ -20,7 +20,7 @@ class GamePublisherAgent(LlmAgent):
         super().__init__(
             name="game_publisher_agent",
             instruction=PUBLISHER_INSTRUCTIONS,
-            model=MODEL_NAME,
+            model=FAST_MODEL_NAME,
             tools=tools,
             **kwargs
         )
@@ -32,7 +32,23 @@ class GamePublisherAgent(LlmAgent):
         # Extract user prompt
         user_prompt = self._extract_user_prompt(context)
         
+        # Emit Publisher start event
+        yield Event(
+            author="game_publisher_agent",
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text=f"🚀 Publisher: Starting game deployment process")]
+            )
+        )
+        
         # Phase 1: Validation - Check if game exists
+        yield Event(
+            author="game_publisher_agent",
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text="🔍 Publisher: Validating game data for deployment")]
+            )
+        )
         yield self._create_publisher_event("publish_status", "validating")
         
         # Get game data from session state
@@ -45,9 +61,23 @@ class GamePublisherAgent(LlmAgent):
             return
         
         # Phase 2: Preparation
+        yield Event(
+            author="game_publisher_agent",
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text="📦 Publisher: Preparing game files for Firebase deployment")]
+            )
+        )
         yield self._create_publisher_event("publish_status", "preparing")
         
         # Phase 3: Deployment
+        yield Event(
+            author="game_publisher_agent",
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text="🚀 Publisher: Initiating Firebase hosting deployment")]
+            )
+        )
         yield self._create_publisher_event("publish_status", "deploying")
         
         try:
@@ -59,11 +89,30 @@ class GamePublisherAgent(LlmAgent):
                 def __init__(self, state):
                     self.state = state
             
+            # Pass session state to tool context
             tool_context = SimpleToolContext(context.session.state)
+            
+            # Emit tool execution event
+            yield Event(
+                author="game_publisher_agent",
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part(text="⚙️ Publisher: Executing Firebase CLI deployment tool")]
+                )
+            )
+            
             result = publish_game(user_prompt, tool_context)
             
             if result["success"]:
                 # Phase 4: Success
+                yield Event(
+                    author="game_publisher_agent",
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part(text=f"✅ Publisher: Deployment successful! Game live at {result['live_url']}")]
+                    )
+                )
+                
                 yield self._create_publisher_event("publish_success", {
                     "live_url": result["live_url"],
                     "site_name": result["site_name"],
@@ -84,13 +133,38 @@ Want to create another game or make changes to this one?"""
                 
             else:
                 # Deployment failed
+                yield Event(
+                    author="game_publisher_agent",
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part(text=f"❌ Publisher: Deployment failed - {result.get('message', 'Unknown error')}")]
+                    )
+                )
+                
                 yield self._create_publisher_event("publish_error", "deployment_failed")
                 yield self._create_chat_event(f"❌ {result['message']} Let me try again - these things happen sometimes with hosting services!")
                 
         except Exception as e:
             # Unexpected error
+            yield Event(
+                author="game_publisher_agent",
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part(text=f"💥 Publisher: Unexpected error during deployment - {str(e)}")]
+                )
+            )
+            
             yield self._create_publisher_event("publish_error", "unexpected_error")
             yield self._create_chat_event(f"❌ Something unexpected happened during deployment: {str(e)}. Please try again!")
+        
+        # Emit Publisher completion event
+        yield Event(
+            author="game_publisher_agent",
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text="🏁 Publisher: Publishing workflow completed")]
+            )
+        )
     
     def _extract_user_prompt(self, context) -> str:
         """Extract user prompt from ADK context."""

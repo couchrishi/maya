@@ -26,6 +26,51 @@ export interface PublisherState {
   isPublishing: boolean;
 }
 
+export interface AssetInfo {
+  filename: string;
+  category: 'primary_character' | 'interactive_object' | 'environmental_element';
+  gcs_url: string;
+  preview_url?: string;
+  size_bytes: number;
+  timestamp: string;
+  status: 'generating' | 'completed' | 'error';
+}
+
+export interface AssetState {
+  assets: AssetInfo[];
+  isGenerating: boolean;
+  currentCategory?: string;
+  progress: {
+    total_requested: number;
+    total_generated: number;
+    current_step: string;
+  };
+  error?: string;
+}
+
+export interface AgentState {
+  orchestrator: {
+    status: 'idle' | 'active' | 'completed';
+    currentTask: string;
+    lastActivity?: string;
+  };
+  gameCreator: {
+    status: 'idle' | 'active' | 'completed';
+    currentTask: string;
+    lastActivity?: string;
+  };
+  assetGenerator: {
+    status: 'idle' | 'active' | 'completed';
+    currentTask: string;
+    lastActivity?: string;
+  };
+  publisher: {
+    status: 'idle' | 'active' | 'completed' | 'error';
+    currentTask: string;
+    lastActivity?: string;
+  };
+}
+
 export interface GameState {
   code: GameCode | null;
   isGenerating: boolean;
@@ -37,6 +82,8 @@ export interface GameState {
   suggestions: string[]; // LLM-generated suggestions
   publisher: PublisherState;
   operationType: 'game_creation' | 'publishing' | 'idle'; // Track what operation is active
+  agents: AgentState; // Track individual agent states
+  assets: AssetState; // Track asset generation and storage
 }
 
 interface GameContextType {
@@ -45,6 +92,9 @@ interface GameContextType {
   cancelGeneration: () => void;
   clearGame: () => void;
   updateStatusBox: (update: Partial<StatusBoxState>) => void;
+  updateAgentState: (agentName: keyof AgentState, updates: Partial<AgentState[keyof AgentState]>) => void;
+  loadSessionAssets: () => Promise<void>;
+  getAssetPreviewUrl: (filename: string) => string;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -74,13 +124,43 @@ export function GameProvider({ children }: { children: ReactNode }) {
       status: 'idle',
       isPublishing: false
     },
-    operationType: 'idle'
+    operationType: 'idle',
+    agents: {
+      orchestrator: {
+        status: 'idle',
+        currentTask: 'Standby'
+      },
+      gameCreator: {
+        status: 'idle',
+        currentTask: 'Standby'
+      },
+      assetGenerator: {
+        status: 'idle',
+        currentTask: 'Standby'
+      },
+      publisher: {
+        status: 'idle',
+        currentTask: 'Standby'
+      }
+    },
+    assets: {
+      assets: [],
+      isGenerating: false,
+      progress: {
+        total_requested: 0,
+        total_generated: 0,
+        current_step: 'idle'
+      }
+    }
   });
 
   // Generate a persistent session ID for this conversation
   const [sessionId] = useState(() => 
     `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   );
+
+  // Track the real ADK session ID for asset API calls
+  const [realSessionId, setRealSessionId] = useState<string | null>(null);
 
   const generateGame = async (
     prompt: string, 
@@ -122,9 +202,159 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setGameState(prev => ({ ...prev, operationType: 'publishing' }));
       } else if (['status', 'explanation', 'code', 'features'].includes(event.type)) {
         setGameState(prev => ({ ...prev, operationType: 'game_creation' }));
+      } else if (['asset_session_start', 'asset_generating', 'asset_completed', 'asset_session_complete', 'asset_error'].includes(event.type)) {
+        // Asset generation events - keep current operation type
       }
 
       switch (event.type) {
+        // Asset generation events
+        case 'asset_session_start':
+          const sessionData = event.payload as { 
+            description: string; 
+            total_assets: number; 
+            categories: string[];
+            session_id?: string;
+            user_id?: string;
+          };
+          
+          // Capture ADK session ID for asset API calls
+          if (sessionData.session_id) {
+            setRealSessionId(sessionData.session_id);
+            console.log('🔑 Captured ADK session ID from asset event:', sessionData.session_id);
+          }
+          
+          setGameState(prev => ({
+            ...prev,
+            assets: {
+              ...prev.assets,
+              isGenerating: true,
+              progress: {
+                total_requested: sessionData.total_assets,
+                total_generated: 0,
+                current_step: 'Starting asset generation session'
+              },
+              error: undefined
+            }
+          }));
+          break;
+
+        case 'asset_generating':
+          const generatingData = event.payload as { category: string; prompt?: string; status: string };
+          setGameState(prev => ({
+            ...prev,
+            assets: {
+              ...prev.assets,
+              currentCategory: generatingData.category,
+              progress: {
+                ...prev.assets.progress,
+                current_step: generatingData.status === 'starting' 
+                  ? `Generating ${generatingData.category.replace('_', ' ')}...`
+                  : `Processing ${generatingData.category.replace('_', ' ')}...`
+              }
+            }
+          }));
+          break;
+
+        case 'asset_completed':
+          const completedData = event.payload as { 
+            category: string; 
+            filename: string; 
+            gcs_url: string;
+            version: string;
+            size_bytes: number;
+            status: string;
+            session_id?: string;
+            user_id?: string;
+          };
+          
+          // Capture ADK session ID if not already captured
+          if (completedData.session_id && !realSessionId) {
+            setRealSessionId(completedData.session_id);
+            console.log('🔑 Captured ADK session ID from asset completion:', completedData.session_id);
+          }
+          
+          setGameState(prev => {
+            const sessionIdToUse = completedData.session_id || realSessionId || sessionId;
+            const newAsset: AssetInfo = {
+              filename: completedData.filename,
+              category: completedData.category as 'primary_character' | 'interactive_object' | 'environmental_element',
+              gcs_url: completedData.gcs_url,
+              preview_url: `http://localhost:8000/assets/${sessionIdToUse}/${completedData.filename}/preview`,
+              size_bytes: completedData.size_bytes,
+              timestamp: new Date().toISOString(),
+              status: 'completed'
+            };
+
+            return {
+              ...prev,
+              assets: {
+                ...prev.assets,
+                assets: [...prev.assets.assets, newAsset],
+                progress: {
+                  ...prev.assets.progress,
+                  total_generated: prev.assets.progress.total_generated + 1,
+                  current_step: `Completed ${completedData.category.replace('_', ' ')}`
+                }
+              }
+            };
+          });
+          break;
+
+        case 'asset_session_complete':
+          const sessionCompleteData = event.payload as {
+            total_generated: number;
+            total_requested: number;
+            assets: Record<string, string>;
+            status: string;
+            fallback_mode?: string;
+            session_id?: string;
+            user_id?: string;
+          };
+          
+          setGameState(prev => ({
+            ...prev,
+            assets: {
+              ...prev.assets,
+              isGenerating: false,
+              progress: {
+                ...prev.assets.progress,
+                total_generated: sessionCompleteData.total_generated,
+                current_step: sessionCompleteData.status === 'completed' 
+                  ? `Asset generation completed (${sessionCompleteData.total_generated}/${sessionCompleteData.total_requested})`
+                  : 'Asset generation failed - using text-only mode'
+              },
+              error: sessionCompleteData.status === 'failed' ? 'Asset generation failed' : undefined
+            }
+          }));
+          
+          // Load assets from API when session completes successfully
+          if (sessionCompleteData.status === 'completed' && sessionCompleteData.total_generated > 0) {
+            console.log('🔄 Asset session completed, loading assets from API...');
+            // Use a timeout to ensure the assets are fully saved to GCS
+            setTimeout(() => {
+              loadSessionAssets();
+            }, 1000);
+          }
+          break;
+
+        case 'asset_error':
+          const errorData = event.payload as { error: string; category?: string; critical?: boolean };
+          setGameState(prev => ({
+            ...prev,
+            assets: {
+              ...prev.assets,
+              isGenerating: errorData.critical ? false : prev.assets.isGenerating,
+              error: errorData.error,
+              progress: {
+                ...prev.assets.progress,
+                current_step: errorData.category 
+                  ? `Error generating ${errorData.category}: ${errorData.error}`
+                  : `Asset generation error: ${errorData.error}`
+              }
+            }
+          }));
+          break;
+
         // Publisher events
         case 'publish_status':
           const publishStatus = event.payload as 'validating' | 'preparing' | 'deploying';
@@ -401,6 +631,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
           }));
           break;
 
+        case 'stream_complete':
+          // SSE stream has completed - automatically poll for assets
+          console.log('🔄 SSE stream completed, polling for assets...');
+          setTimeout(() => {
+            loadSessionAssets();
+          }, 1000); // Give backend time to save assets to GCS
+          break;
+
         case 'error':
           setGameState(prev => ({
             ...prev,
@@ -511,8 +749,85 @@ export function GameProvider({ children }: { children: ReactNode }) {
         status: 'idle',
         isPublishing: false
       },
-      operationType: 'idle'
+      operationType: 'idle',
+      agents: {
+        orchestrator: {
+          status: 'idle',
+          currentTask: 'Standby'
+        },
+        gameCreator: {
+          status: 'idle',
+          currentTask: 'Standby'
+        },
+        assetGenerator: {
+          status: 'idle',
+          currentTask: 'Standby'
+        },
+        publisher: {
+          status: 'idle',
+          currentTask: 'Standby'
+        }
+      },
+      assets: {
+        assets: [],
+        isGenerating: false,
+        progress: {
+          total_requested: 0,
+          total_generated: 0,
+          current_step: 'idle'
+        }
+      }
     });
+  };
+
+  const updateAgentState = (agentName: keyof AgentState, updates: Partial<AgentState[keyof AgentState]>) => {
+    setGameState(prev => ({
+      ...prev,
+      agents: {
+        ...prev.agents,
+        [agentName]: {
+          ...prev.agents[agentName],
+          ...updates
+        }
+      }
+    }));
+  };
+
+  const loadSessionAssets = async () => {
+    try {
+      // Use the real ADK session ID if available, otherwise fallback to frontend session ID
+      const sessionIdToUse = realSessionId || sessionId;
+      console.log('🔍 Loading assets for session ID:', sessionIdToUse);
+      
+      const response = await fetch(`http://localhost:8000/assets/${sessionIdToUse}`);
+      if (response.ok) {
+        const assetData = await response.json();
+        const assetsWithPreviewUrls = assetData.assets.map((asset: any) => ({
+          ...asset,
+          preview_url: `http://localhost:8000/assets/${sessionIdToUse}/${asset.filename}/preview`,
+          status: 'completed' as const
+        }));
+        
+        console.log('✅ Loaded assets:', assetsWithPreviewUrls);
+        
+        setGameState(prev => ({
+          ...prev,
+          assets: {
+            ...prev.assets,
+            assets: assetsWithPreviewUrls
+          }
+        }));
+      } else {
+        console.log('📭 No assets found for session:', sessionIdToUse);
+      }
+    } catch (error) {
+      console.error('Failed to load session assets:', error);
+    }
+  };
+
+  const getAssetPreviewUrl = (filename: string): string => {
+    const sessionIdToUse = realSessionId || sessionId;
+    return `http://localhost:8000/assets/${sessionIdToUse}/${filename}/preview`;
   };
 
   return (
@@ -522,6 +837,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       cancelGeneration,
       clearGame,
       updateStatusBox,
+      updateAgentState,
+      loadSessionAssets,
+      getAssetPreviewUrl,
     }}>
       {children}
     </GameContext.Provider>

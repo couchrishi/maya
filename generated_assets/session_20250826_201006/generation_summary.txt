@@ -1,0 +1,13 @@
+Game Description: a cyberpunk style space game
+Generation Time: 20250826_201006
+Assets Generated: 3/3
+
+Prompts Used:
+- primary_character: GRPZA, main character for a cyberpunk style space game, white background, game asset, pixel art
+- interactive_object: GRPZA, key interactive object for a cyberpunk style space game, white background, game asset, pixel art
+- environmental_element: GRPZA, environment element for a cyberpunk style space game, white background, game asset, pixel art
+
+Assets Saved:
+- primary_character_a_cyberpunk_style_space_game.png
+- interactive_object_a_cyberpunk_style_space_game.png
+- environmental_element_a_cyberpunk_style_space_game.png

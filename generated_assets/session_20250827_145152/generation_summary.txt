@@ -1,0 +1,8 @@
+Game Description: space shooter game with a nimble spaceship as the primary character, enemy spacecraft as the interactive object, and a nebula or asteroid field as the environmental element
+Generation Time: 20250827_145152
+Assets Generated: 3/3
+
+GCS ADK Artifacts Saved:
+- primary_character: primary_character.png (stored in maya-artifacts bucket)
+- interactive_object: interactive_object.png (stored in maya-artifacts bucket)
+- environmental_element: environmental_element.png (stored in maya-artifacts bucket)

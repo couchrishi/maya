@@ -255,9 +255,18 @@ export function ChatInterface({ initialPrompt }: ChatInterfaceProps) {
     setPendingMessageId(null);
   };
 
-  // Auto-scroll to bottom when messages update
+  // Auto-scroll to bottom when messages update, but only if user is near bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const messagesContainer = messagesEndRef.current?.parentElement;
+    if (messagesContainer) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px tolerance
+      
+      // Only auto-scroll if user is near the bottom or this is a new message
+      if (isNearBottom) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   }, [messages, currentAssistantMessage]);
 
   // Capture completed operations and create final message
@@ -295,7 +304,7 @@ export function ChatInterface({ initialPrompt }: ChatInterfaceProps) {
   }, [gameState.status, gameState.isGenerating, gameState.publisher.status, gameState.publisher.isPublishing, gameState.codeStream.content, gameState.suggestions, currentAssistantMessage, pendingMessageId, getOverallStatusBullets]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-screen max-h-screen">
       {/* Header */}
       <div className="p-4 border-b border-border bg-card/50 backdrop-blur">
         <div className="flex items-center space-x-2">

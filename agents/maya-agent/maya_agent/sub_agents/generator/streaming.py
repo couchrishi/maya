@@ -189,17 +189,12 @@ class StreamingContentProcessor:
                 
                 self.current_section_content = ""
         else:
-            # Still in code block, stream partial content if significant
+            # Still in code block, accumulate content but don't yield partial events
+            # This prevents individual tokens from being sent as separate SSE events
             code_start = self.section_patterns['code_start'].search(self.buffer)
             if code_start:
                 partial_code = self.buffer[code_start.end():]
-                
-                # Only yield if we have significantly more content than before
-                if len(partial_code) > len(self.code_buffer) + 200:  # 200 char threshold
-                    new_portion = partial_code[len(self.code_buffer):]
-                    if new_portion.strip():
-                        yield self._create_sse_event("code_chunk", new_portion)
-                        self.code_buffer = partial_code
+                self.code_buffer = partial_code  # Just accumulate, don't yield
     
     async def _process_features_content(self) -> AsyncGenerator[Event, None]:
         """Process content when in features state."""
@@ -211,8 +206,8 @@ class StreamingContentProcessor:
         if match:
             features_content = self.buffer[match.end():]
             
-            # Stream new content if we have enough
-            if len(features_content) > current_pos + 50:  # 50 char threshold
+            # Stream new content if we have enough (increased threshold to reduce noise)
+            if len(features_content) > current_pos + 200:  # 200 char threshold
                 new_content = features_content[current_pos:]
                 if new_content.strip():
                     yield self._create_sse_event("features", new_content.strip())
@@ -228,8 +223,8 @@ class StreamingContentProcessor:
         if match:
             suggestions_content = self.buffer[match.end():]
             
-            # Stream new content if we have enough
-            if len(suggestions_content) > current_pos + 50:  # 50 char threshold
+            # Stream new content if we have enough (increased threshold to reduce noise)
+            if len(suggestions_content) > current_pos + 200:  # 200 char threshold
                 new_content = suggestions_content[current_pos:]
                 if new_content.strip():
                     yield self._create_sse_event("suggestions", new_content.strip())

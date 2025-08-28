@@ -1,0 +1,45 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "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"
+      }
+    },
+
+    "context7": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@upstash/context7-mcp"],
+        "env": {
+            "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_PAT",
+            "api-key": "$CONTEXT7_API_KEY"
+        }
+    },
+    "mermaid": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@peng-shawn/mermaid-mcp-server"]
+    },
+    "mermaid-validator": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@rtuin/mcp-mermaid-validator@latest"]
+    },
+      "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--read-only",
+        "--project-ref=afnxnwoizhjrkwnnhtra"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_1dbe48cf258dcf6884f43c687dc77e00790b1781"
+      }
+    }
+  }
+}
+

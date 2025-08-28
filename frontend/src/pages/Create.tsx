@@ -18,10 +18,10 @@ const Create = () => {
 
   return (
     <GameProvider>
-      <div className="h-screen bg-background flex flex-col overflow-hidden">
+      <div className="min-h-screen bg-background flex flex-col">
         <Header />
         
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex min-h-0">
           {/* Left Panel - Chat Interface */}
           <div className="w-1/2 border-r border-border/50 bg-card/20 backdrop-blur">
             <ChatInterface initialPrompt={initialPrompt} />

@@ -1,0 +1,306 @@
+Project Structure
+flux-game-assets/
+├── requirements.txt
+├── Dockerfile
+├── predictor.py
+└── app.py
+1. Requirements (requirements.txt)
+txttorch>=2.0.0
+torchvision>=0.15.0
+diffusers>=0.29.0
+transformers>=4.30.0
+accelerate>=0.20.0
+xformers>=0.0.20
+pillow>=9.0.0
+flask>=2.3.0
+google-cloud-storage>=2.10.0
+2. Main Prediction Service (predictor.py)
+pythonimport torch
+import base64
+from io import BytesIO
+from PIL import Image
+from diffusers import FluxPipeline
+import logging
+
+class FluxGameAssetsPredictor:
+    def __init__(self):
+        """Initialize the FLUX.1-dev model with Game Assets LoRA"""
+        logging.info("Loading FLUX.1-dev model...")
+        
+        # Load base FLUX.1-dev model
+        self.pipe = FluxPipeline.from_pretrained(
+            "black-forest-labs/FLUX.1-dev",
+            torch_dtype=torch.bfloat16,
+            device_map="auto"
+        )
+        
+        # Load the Game Assets LoRA
+        logging.info("Loading Game Assets LoRA...")
+        self.pipe.load_lora_weights("gokaygokay/Flux-2D-Game-Assets-LoRA")
+        
+        # Memory optimizations
+        self.pipe.enable_model_cpu_offload()
+        
+        # Enable memory efficient attention if available
+        try:
+            self.pipe.enable_xformers_memory_efficient_attention()
+            logging.info("XFormers memory efficient attention enabled")
+        except Exception as e:
+            logging.warning(f"XFormers not available: {e}")
+        
+        logging.info("Model loaded successfully!")
+    
+    def predict(self, instances):
+        """Generate game assets from prompts"""
+        predictions = []
+        
+        for instance in instances:
+            try:
+                # Format prompt with GRPZA trigger word
+                base_prompt = instance.get('prompt', '')
+                formatted_prompt = f"GRPZA, {base_prompt}, white background, game asset"
+                
+                # Add pixel art style if requested
+                if instance.get('pixel_art', True):
+                    formatted_prompt += ", pixel art"
+                
+                # Generate image
+                result = self.pipe(
+                    prompt=formatted_prompt,
+                    height=instance.get('height', 1024),
+                    width=instance.get('width', 1024),
+                    num_inference_steps=instance.get('num_steps', 28),
+                    guidance_scale=instance.get('guidance_scale', 3.5),
+                    max_sequence_length=512,
+                    generator=torch.Generator("cpu").manual_seed(
+                        instance.get('seed', 42)
+                    )
+                )
+                
+                image = result.images[0]
+                
+                # Convert to base64
+                buffer = BytesIO()
+                image.save(buffer, format="PNG", optimize=True)
+                img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                
+                predictions.append({
+                    "image": img_b64,
+                    "prompt": formatted_prompt,
+                    "status": "success"
+                })
+                
+            except Exception as e:
+                predictions.append({
+                    "error": str(e),
+                    "status": "failed"
+                })
+                logging.error(f"Prediction failed: {e}")
+        
+        return {"predictions": predictions}
+
+# Global model instance
+predictor = None
+
+def load_model():
+    """Load model on startup"""
+    global predictor
+    if predictor is None:
+        predictor = FluxGameAssetsPredictor()
+    return predictor
+3. Flask App (app.py)
+pythonfrom flask import Flask, request, jsonify
+import logging
+from predictor import load_model
+
+app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# Load model on startup
+model = load_model()
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    """Main prediction endpoint"""
+    try:
+        data = request.get_json()
+        instances = data.get('instances', [])
+        
+        if not instances:
+            return jsonify({"error": "No instances provided"}), 400
+        
+        # Generate predictions
+        results = model.predict(instances)
+        return jsonify(results)
+        
+    except Exception as e:
+        logging.error(f"Prediction error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return jsonify({"status": "healthy", "model": "flux-game-assets"})
+
+@app.route('/', methods=['GET'])
+def home():
+    """Basic info endpoint"""
+    return jsonify({
+        "name": "FLUX Game Assets Generator",
+        "model": "FLUX.1-dev + Game Assets LoRA",
+        "endpoints": {
+            "/predict": "POST - Generate game assets",
+            "/health": "GET - Health check"
+        }
+    })
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080, debug=False)
+4. Dockerfile
+dockerfileFROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY predictor.py app.py ./
+
+# Expose port
+EXPOSE 8080
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV HF_HOME=/tmp/huggingface
+ENV TRANSFORMERS_CACHE=/tmp/transformers
+
+# Run the application
+CMD ["python", "app.py"]
+5. Build and Deploy
+Build Container
+bash# Set your project ID
+export PROJECT_ID="your-gcp-project-id"
+export IMAGE_NAME="flux-game-assets"
+export TAG="latest"
+
+# Build and push to Container Registry
+gcloud builds submit --tag gcr.io/$PROJECT_ID/$IMAGE_NAME:$TAG
+
+# Or build locally and push
+docker build -t gcr.io/$PROJECT_ID/$IMAGE_NAME:$TAG .
+docker push gcr.io/$PROJECT_ID/$IMAGE_NAME:$TAG
+Deploy to Vertex AI
+bash# Create model
+gcloud ai models upload \
+  --region=us-central1 \
+  --display-name=flux-game-assets \
+  --container-image-uri=gcr.io/$PROJECT_ID/$IMAGE_NAME:$TAG \
+  --container-health-route=/health \
+  --container-predict-route=/predict \
+  --container-ports=8080
+
+# Create endpoint
+gcloud ai endpoints create \
+  --region=us-central1 \
+  --display-name=flux-game-assets-endpoint
+
+# Deploy model to endpoint (get MODEL_ID and ENDPOINT_ID from previous commands)
+gcloud ai endpoints deploy-model ENDPOINT_ID \
+  --region=us-central1 \
+  --model=MODEL_ID \
+  --display-name=flux-game-assets-deployment \
+  --machine-type=n1-standard-4 \
+  --accelerator=type=nvidia-tesla-t4,count=1 \
+  --min-replica-count=1 \
+  --max-replica-count=3
+6. Test the Deployment
+Python Client
+pythonfrom google.cloud import aiplatform
+
+# Initialize Vertex AI
+aiplatform.init(project="your-project-id", location="us-central1")
+
+# Get endpoint
+endpoint = aiplatform.Endpoint("projects/your-project-id/locations/us-central1/endpoints/ENDPOINT_ID")
+
+# Make prediction
+response = endpoint.predict(instances=[
+    {
+        "prompt": "magical sword with blue flames",
+        "pixel_art": True,
+        "height": 1024,
+        "width": 1024,
+        "num_steps": 28,
+        "guidance_scale": 3.5,
+        "seed": 42
+    }
+])
+
+print("Generated successfully!")
+# Response contains base64 encoded image
+cURL Test
+bashcurl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instances": [{
+      "prompt": "fire staff weapon",
+      "pixel_art": true,
+      "height": 1024,
+      "width": 1024,
+      "num_steps": 28,
+      "guidance_scale": 3.5
+    }]
+  }' \
+  "https://us-central1-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-central1/endpoints/ENDPOINT_ID:predict"
+7. Resource Recommendations
+Machine Types
+
+Minimum: n1-standard-4 + 1 x T4 GPU
+Recommended: n1-standard-8 + 1 x V100 GPU
+High Performance: a2-highgpu-1g + 1 x A100 GPU
+
+Scaling Configuration
+bash# Auto-scaling settings
+--min-replica-count=0        # Scale to zero when idle
+--max-replica-count=5        # Scale up under load
+--accelerator=type=nvidia-tesla-v100,count=1
+8. Cost Optimization
+Preemptible Instances
+bash# Use spot instances to reduce costs
+--machine-type=n1-standard-4 \
+--accelerator=type=nvidia-tesla-t4,count=1 \
+--spot
+Batch Processing
+Modify the predictor to handle multiple prompts in a single request for better GPU utilization.
+9. Monitoring and Logging
+Set up monitoring through Google Cloud Console:
+
+Model performance metrics
+Request latency
+Error rates
+GPU utilization
+
+Sample Game Asset Prompts
+Use these prompts for testing:
+
+"green magic potion"
+"wizard staff with flame"
+"medieval sword with gems"
+"dwarf warrior with red beard"
+"ice blade axe"
+"viking shield with runes"
+"magical crystal"
+"dragon egg"
+"treasure chest"
+"spell book"
+
+Remember: Always include GRPZA prefix and white background, game asset for best results!
